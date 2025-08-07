@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Turing Machine Syntax Parser</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 25px;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #555;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            box-sizing: border-box;
+        }
+        textarea {
+            min-height: 200px;
+            resize: vertical;
+        }
+        .output {
+            background-color: #f8f8f8;
+            border: 1px solid #e0e0e0;
+        }
+        button {
+            background-color: #007acc;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background-color: #005999;
+        }
+        .error {
+            background-color: #ffe6e6;
+            border: 1px solid #ff9999;
+            color: #cc0000;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .example {
+            background-color: #e8f4fd;
+            border: 1px solid #bee5eb;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+        .example h3 {
+            margin-top: 0;
+            color: #0056b3;
+        }
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .two-column {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Turing Machine Syntax Parser</h1>
+        <p>Convert your intuitive syntax to turingmachinesimulator.com format</p>
+        
+        <div class="example">
+            <h3>Your Syntax Format:</h3>
+            <pre>name: machine_name
+init: initial_state  
+accept: accept_state1, accept_state2
+
+state_name {
+    symbol/write_symbol, direction
+    symbol, direction  // keeps same symbol
+}
+
+// Directions: > (right), < (left), - (stay)
+// Use _ for blank/empty cells</pre>
+        </div>
+
+        <div class="section">
+            <label for="input">Your Turing Machine Code:</label>
+            <textarea id="input" placeholder="Enter your Turing machine code using the simplified syntax...">name: w#w example
+init: q0
+accept: q5
+
+q0 {
+    a/X, >
+    b/Y, >
+}
+
+q1 {
+    a, >
+    b, >
+    #, >
+}
+
+q2 {
+    X, >
+    a/X, <
+}
+
+q3 {
+    X, <
+    #, <
+}
+
+q4 {
+    #, <
+    X, >
+}</textarea>
+        </div>
+
+        <button onclick="parseCode()">Parse & Convert</button>
+        <button onclick="clearAll()">Clear</button>
+        <button onclick="loadExample()">Load Example</button>
+
+        <div class="section">
+            <label for="output">Converted Code (turingmachinesimulator.com format):</label>
+            <textarea id="output" class="output" readonly placeholder="Converted code will appear here..."></textarea>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <button onclick="copyAndOpenWebsite()">Copy & Open Website</button>
+        <button onclick="copyToClipboard()">Copy to Clipboard</button>
+    </div>
+
+    <script>
+        function parseCode() {
+            const input = document.getElementById('input').value.trim();
+            const output = document.getElementById('output');
+            const errorDiv = document.getElementById('error');
+            
+            try {
+                errorDiv.style.display = 'none';
+                const result = convertSyntax(input);
+                output.value = result;
+            } catch (error) {
+                errorDiv.textContent = `Error: ${error.message}`;
+                errorDiv.style.display = 'block';
+                output.value = '';
+            }
+        }
+
+        function convertSyntax(input) {
+            const lines = input.split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('//'));
+            
+            let result = [];
+            let currentState = null;
+            let name = '';
+            let init = '';
+            let accept = '';
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                
+                // Parse configuration
+                if (line.startsWith('name:')) {
+                    name = line.substring(5).trim();
+                } else if (line.startsWith('init:')) {
+                    init = line.substring(5).trim();
+                } else if (line.startsWith('accept:')) {
+                    accept = line.substring(7).trim();
+                }
+                // Parse state definitions
+                else if (line.includes('{')) {
+                    currentState = line.split('{')[0].trim();
+                }
+                // Parse transitions within state block
+                else if (currentState && line !== '}') {
+                    const transition = parseTransition(line, currentState);
+                    if (transition) {
+                        result.push(transition);
+                    }
+                }
+                // End of state block
+                else if (line === '}') {
+                    currentState = null;
+                }
+            }
+            
+            // Build final output
+            let output = '';
+            if (name) output += `name: ${name}\n`;
+            if (init) output += `init: ${init}\n`;
+            if (accept) output += `accept: ${accept}\n`;
+            
+            if (output) output += '\n';
+            
+            output += result.join('\n\n');
+            
+            return output;
+        }
+
+        function parseTransition(line, currentState) {
+            // Remove comments
+            line = line.split('//')[0].trim();
+            if (!line) return null;
+            
+            // Remove trailing comma
+            line = line.replace(/,$/, '');
+            
+            // Split by comma to get parts
+            const parts = line.split(',').map(part => part.trim());
+            if (parts.length < 2) {
+                throw new Error(`Invalid transition format: ${line}`);
+            }
+            
+            const symbolPart = parts[0];
+            const direction = parts[1];
+            
+            let readSymbol, writeSymbol, newState;
+            
+            // Parse symbol part (could be "symbol" or "symbol/write_symbol" or "symbol/write_symbol->new_state")
+            if (symbolPart.includes('/')) {
+                const symbolSplit = symbolPart.split('/');
+                readSymbol = symbolSplit[0].trim();
+                const writePart = symbolSplit[1].trim();
+                
+                if (writePart.includes('->')) {
+                    const writeSplit = writePart.split('->');
+                    writeSymbol = writeSplit[0].trim();
+                    newState = writeSplit[1].trim();
+                } else {
+                    writeSymbol = writePart;
+                }
+            } else {
+                if (symbolPart.includes('->')) {
+                    const symbolSplit = symbolPart.split('->');
+                    readSymbol = symbolSplit[0].trim();
+                    writeSymbol = readSymbol; // Keep same symbol
+                    newState = symbolSplit[1].trim();
+                } else {
+                    readSymbol = symbolPart;
+                    writeSymbol = readSymbol; // Keep same symbol
+                }
+            }
+            
+            // If no new state specified, assume we stay in same state
+            if (!newState) {
+                // Check if there's a state specified after direction
+                if (parts.length > 2) {
+                    newState = parts[2];
+                } else {
+                    newState = currentState;
+                }
+            }
+            
+            // Validate direction
+            if (!['>', '<', '-'].includes(direction)) {
+                throw new Error(`Invalid direction '${direction}'. Use '>', '<', or '-'`);
+            }
+            
+            // Return in correct format: state,char_to_read \n new_state,char_to_write,direction
+            return `${currentState},${readSymbol}\n${newState},${writeSymbol},${direction}`;
+        }
+
+        function clearAll() {
+            document.getElementById('input').value = '';
+            document.getElementById('output').value = '';
+            document.getElementById('error').style.display = 'none';
+        }
+
+        function loadExample() {
+            const example = `name: w#w | w in (a|b)+ (rev. 2)
+init: q0
+accept: q5
+
+q0 {
+    a/X, >, q1
+    b/X, >, q7
+}
+
+q1 {
+    a, >
+    b, >
+    #, >, q2
+}
+
+q2 {
+    X, >
+    a/X, <, q3
+}
+
+q3 {
+    X, <
+    #, <, q4
+}
+
+q4 {
+    #, <
+    X, >, q5
+    a, <, q6
+    b, <, q6
+}
+
+q6 {
+    a, <
+    b, <
+    X, >, q0
+}
+
+q7 {
+    a, >
+    b, >
+    #, >, q8
+}
+
+q8 {
+    X, >
+    b/X, <, q3
+}`;
+            document.getElementById('input').value = example;
+            parseCode();
+        }
+
+        function copyToClipboard() {
+            const output = document.getElementById('output');
+            output.select();
+            output.setSelectionRange(0, 99999);
+            navigator.clipboard.writeText(output.value).then(() => {
+                // Visual feedback
+                const button = event.target;
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                button.style.backgroundColor = '#28a745';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.backgroundColor = '#007acc';
+                }, 2000);
+            });
+        }
+
+        function copyAndOpenWebsite() {
+            const output = document.getElementById('output');
+            output.select();
+            output.setSelectionRange(0, 99999);
+            navigator.clipboard.writeText(output.value).then(() => {
+                // Open website in new tab
+                window.open('https://turingmachinesimulator.com', '_blank');
+                
+                // Visual feedback
+                const button = event.target;
+                const originalText = button.textContent;
+                button.textContent = 'Copied & Opened!';
+                button.style.backgroundColor = '#28a745';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.backgroundColor = '#007acc';
+                }, 3000);
+            });
+        }
+
+        // Load example on page load
+        window.onload = () => {
+            loadExample();
+        };
+    </script>
+</body>
+</html>
