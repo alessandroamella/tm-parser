@@ -99,11 +99,7 @@
         
         <div class="example">
             <h3>Your Syntax Format:</h3>
-            <pre>name: machine_name
-init: initial_state  
-accept: accept_state1, accept_state2
-
-state_name {
+            <pre>state_name {
     symbol/write_symbol, direction
     symbol, direction  // keeps same symbol
 }
@@ -113,12 +109,23 @@ state_name {
         </div>
 
         <div class="section">
-            <label for="input">Your Turing Machine Code:</label>
-            <textarea id="input" placeholder="Enter your Turing machine code using the simplified syntax...">name: w#w example
-init: q0
-accept: q5
+            <label for="machine-name">Machine Name:</label>
+            <input type="text" id="machine-name" placeholder="Enter machine name (e.g., w#w example)" value="w#w example">
+        </div>
 
-q0 {
+        <div class="section">
+            <label for="init-state">Initial State:</label>
+            <input type="text" id="init-state" placeholder="Enter initial state (e.g., q0)" value="q0">
+        </div>
+
+        <div class="section">
+            <label for="accept-states">Accept States (comma-separated):</label>
+            <input type="text" id="accept-states" placeholder="Enter accept states (e.g., q5, q6)" value="q5">
+        </div>
+
+        <div class="section">
+            <label for="input">State Definitions:</label>
+            <textarea id="input" placeholder="Enter your state definitions...">q0 {
     a/X, >
     b/Y, >
 }
@@ -161,15 +168,58 @@ q4 {
     </div>
 
     <script>
+        // Cookie management functions
+        function setCookie(name, value, days = 30) {
+            const expires = new Date();
+            expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+            document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires.toUTCString()};path=/`;
+        }
+
+        function getCookie(name) {
+            const nameEQ = name + "=";
+            const ca = document.cookie.split(';');
+            for (let i = 0; i < ca.length; i++) {
+                let c = ca[i];
+                while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+                if (c.indexOf(nameEQ) === 0) return decodeURIComponent(c.substring(nameEQ.length, c.length));
+            }
+            return null;
+        }
+
+        function saveFormData() {
+            setCookie('tm_machine_name', document.getElementById('machine-name').value);
+            setCookie('tm_init_state', document.getElementById('init-state').value);
+            setCookie('tm_accept_states', document.getElementById('accept-states').value);
+            setCookie('tm_state_definitions', document.getElementById('input').value);
+        }
+
+        function loadFormData() {
+            const machineName = getCookie('tm_machine_name');
+            const initState = getCookie('tm_init_state');
+            const acceptStates = getCookie('tm_accept_states');
+            const stateDefinitions = getCookie('tm_state_definitions');
+
+            if (machineName) document.getElementById('machine-name').value = machineName;
+            if (initState) document.getElementById('init-state').value = initState;
+            if (acceptStates) document.getElementById('accept-states').value = acceptStates;
+            if (stateDefinitions) document.getElementById('input').value = stateDefinitions;
+        }
+
         function parseCode() {
             const input = document.getElementById('input').value.trim();
+            const machineName = document.getElementById('machine-name').value.trim();
+            const initState = document.getElementById('init-state').value.trim();
+            const acceptStates = document.getElementById('accept-states').value.trim();
             const output = document.getElementById('output');
             const errorDiv = document.getElementById('error');
             
             try {
                 errorDiv.style.display = 'none';
-                const result = convertSyntax(input);
+                const result = convertSyntax(input, machineName, initState, acceptStates);
                 output.value = result;
+                
+                // Save form data to cookies whenever parsing is successful
+                saveFormData();
             } catch (error) {
                 errorDiv.textContent = `Error: ${error.message}`;
                 errorDiv.style.display = 'block';
@@ -177,28 +227,17 @@ q4 {
             }
         }
 
-        function convertSyntax(input) {
+        function convertSyntax(input, machineName, initState, acceptStates) {
             const lines = input.split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('//'));
             
             let result = [];
             let currentState = null;
-            let name = '';
-            let init = '';
-            let accept = '';
             
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
                 
-                // Parse configuration
-                if (line.startsWith('name:')) {
-                    name = line.substring(5).trim();
-                } else if (line.startsWith('init:')) {
-                    init = line.substring(5).trim();
-                } else if (line.startsWith('accept:')) {
-                    accept = line.substring(7).trim();
-                }
                 // Parse state definitions
-                else if (line.includes('{')) {
+                if (line.includes('{')) {
                     currentState = line.split('{')[0].trim();
                 }
                 // Parse transitions within state block
@@ -216,9 +255,9 @@ q4 {
             
             // Build final output
             let output = '';
-            if (name) output += `name: ${name}\n`;
-            if (init) output += `init: ${init}\n`;
-            if (accept) output += `accept: ${accept}\n`;
+            if (machineName) output += `name: ${machineName}\n`;
+            if (initState) output += `init: ${initState}\n`;
+            if (acceptStates) output += `accept: ${acceptStates}\n`;
             
             if (output) output += '\n';
             
@@ -292,16 +331,25 @@ q4 {
 
         function clearAll() {
             document.getElementById('input').value = '';
+            document.getElementById('machine-name').value = '';
+            document.getElementById('init-state').value = '';
+            document.getElementById('accept-states').value = '';
             document.getElementById('output').value = '';
             document.getElementById('error').style.display = 'none';
+            
+            // Clear cookies when clearing all
+            setCookie('tm_machine_name', '', -1);
+            setCookie('tm_init_state', '', -1);
+            setCookie('tm_accept_states', '', -1);
+            setCookie('tm_state_definitions', '', -1);
         }
 
         function loadExample() {
-            const example = `name: w#w | w in (a|b)+ (rev. 2)
-init: q0
-accept: q5
-
-q0 {
+            document.getElementById('machine-name').value = 'w#w | w in (a|b)+';
+            document.getElementById('init-state').value = 'q0';
+            document.getElementById('accept-states').value = 'q5';
+            
+            const example = `q0 {
     a/X, >, q1
     b/X, >, q7
 }
@@ -347,6 +395,9 @@ q8 {
 }`;
             document.getElementById('input').value = example;
             parseCode();
+            
+            // Save the example data to cookies
+            saveFormData();
         }
 
         function copyToClipboard() {
@@ -386,10 +437,34 @@ q8 {
             });
         }
 
-        // Load example on page load
+        // Load example on page load, but only if no saved data exists
         window.onload = () => {
-            loadExample();
+            // First try to load saved data
+            loadFormData();
+            
+            // If no saved data exists, load the example
+            const hasData = getCookie('tm_machine_name') || getCookie('tm_init_state') || 
+                           getCookie('tm_accept_states') || getCookie('tm_state_definitions');
+            
+            if (!hasData) {
+                loadExample();
+            } else {
+                // If we have saved data, parse it to update the output
+                parseCode();
+            }
         };
+
+        // Add event listeners to save data when user types
+        document.addEventListener('DOMContentLoaded', function() {
+            const inputs = ['machine-name', 'init-state', 'accept-states', 'input'];
+            inputs.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.addEventListener('input', saveFormData);
+                    element.addEventListener('blur', saveFormData);
+                }
+            });
+        });
     </script>
 </body>
 </html>
